@@ -10,6 +10,8 @@
       rel="stylesheet"
       href="./static/bootstrap-icons/font/bootstrap-icons.css"
     />
+    <!-- 高亮 -->
+    <link rel="stylesheet" href="./static/css/hightlight.css" />
     <!-- katex -->
     <link rel="stylesheet" href="./static/katex/katex.min.css" />
   </head>
@@ -76,8 +78,8 @@
             class="card-header"
             :class="{ 'bg-secondary text-light': chat.name === '机器人' }"
           >
-          <i class="bi-robot" role="img" v-if="chat.name === '机器人'"></i>
-          <i class="bi-person" role="img" v-else></i>
+            <i class="bi-robot" role="img" v-if="chat.name === '机器人'"></i>
+            <i class="bi-person" role="img" v-else></i>
             {{chat.name}}
           </div>
           <div class="card-body" v-html="beautifyText(chat.msg)"></div>
@@ -219,8 +221,12 @@
     <script src="./static/layer/layer.js"></script>
     <!-- markdown -->
     <script src="./static/js/marked.min.js"></script>
+    <!-- 高亮 -->
+    <script src="./static/js/highlight.min.js"></script>
     <!-- katex -->
     <script src="./static/katex/katex.min.js"></script>
+    <!-- 复制 -->
+    <script src="./static/js/clipboard.min.js"></script>
     <!-- 自定义vue插件 -->
     <script src="./static/js/vue.plugin.js"></script>
     <script type="text/javascript">
@@ -263,9 +269,11 @@
             );
           },
           beautifyText: function (text) {
-            var markedHtml = marked.parse(text); // 使用marked将文本转换为HTML
+            // 使用marked将文本转换为HTML
+            var markedHtml = marked.parse(text);
+            //使用katex显示数学公式
             var katexHtml = markedHtml.replace(
-              /(\$\$.*?\$\$|\$.*?\$)/g,
+              /(\$\$.*?\$\$|\$.*?\$)(?![^<]*<\/code>)/g,
               function (match) {
                 // 使用正则表达式匹配KaTeX语法的公式
                 var katexExpression = match.slice(
@@ -289,7 +297,36 @@
                 }
               }
             );
-            return katexHtml;
+            // 使用highlight.js对代码块进行语法高亮
+            var highlightedHtml = katexHtml.replace(
+              /<pre><code class="(.+?)">([\s\S]+?)<\/code><\/pre>/g,
+              function (match, language, code) {
+                //去除转义
+                code = code
+                  .replace(/&lt;/g, "<")
+                  .replace(/&gt;/g, ">")
+                  .replace(/&amp;/g, "&")
+                  .replace(/&quot;/g, '"')
+                  .replace(/&apos;/g, "'");
+                // 使用highlight.js对代码进行语法高亮
+                var highlightedCode = hljs.highlightAuto(code).value;
+                var copyButton =
+                  '<button class="btn btn-outline-secondary" data-clipboard-text="' +
+                  encodeURIComponent(code) +
+                  '">复制</button>';
+
+                return (
+                  '<pre><code class="' +
+                  language +
+                  '">' +
+                  highlightedCode +
+                  "</code>" +
+                  copyButton +
+                  "</pre>"
+                );
+              }
+            );
+            return highlightedHtml;
           },
           smoothscroll: function () {
             const currentScroll =
@@ -343,6 +380,8 @@
 
             this.smoothscroll();
             if (isEnd) {
+              this.isStart = false;
+              this.wait = false;
               //缓存
               window.localStorage.setItem(
                 "chatLog",
@@ -408,8 +447,6 @@
               },
               vm.load_stream
             );
-            this.isStart = false;
-            this.wait = false;
             //缓存
             window.localStorage.setItem(
               "chatLog",
@@ -442,7 +479,16 @@
           },
         },
         mounted() {
+          //加载缓存
           this.start();
+          //复制的值转义
+          var clipboard = new ClipboardJS(".btn-outline-secondary", {
+            text: function (trigger) {
+              var encodedText = trigger.getAttribute("data-clipboard-text");
+              var decodedText = decodeURIComponent(encodedText);
+              return decodedText;
+            },
+          });
         },
       });
     </script>
