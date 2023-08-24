@@ -74,8 +74,10 @@
         <div class="card mt-2" v-for="chat in chatLog">
           <div
             class="card-header"
-            :class="{ 'bg-secondary': chat.name === '机器人' }"
+            :class="{ 'bg-secondary text-light': chat.name === '机器人' }"
           >
+          <i class="bi-robot" role="img" v-if="chat.name === '机器人'"></i>
+          <i class="bi-person" role="img" v-else></i>
             {{chat.name}}
           </div>
           <div class="card-body" v-html="beautifyText(chat.msg)"></div>
