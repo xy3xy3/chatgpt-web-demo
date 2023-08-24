@@ -43,7 +43,23 @@
       </nav>
       <br />
       <div class="pt-5" id="chat">
-        <div class="card mt-2" v-if="chatLog.length==0">
+        <div class="card mt-2">
+          <div class="card-body">
+            <p>选择使用的模型</p>
+
+            <select class="form-select" v-model="model" @change="save(0)">
+              <option>gpt-3.5-turbo</option>
+              <option>gpt-3.5-turbo-16k</option>
+              <option>gpt-3.5-turbo-0613</option>
+              <option>gpt-3.5-turbo-16k-0613</option>
+              <option>gpt-4</option>
+              <option>gpt-4-32k</option>
+              <option>gpt-4-0613</option>
+              <option>gpt-4-32k-0613</option>
+            </select>
+          </div>
+        </div>
+        <div class="card mt-2" v-show="chatLog.length==0">
           <div class="card-header">说明</div>
           <div class="card-body">
             <ul class="list-group">
@@ -65,23 +81,37 @@
           <div class="card-body" v-html="beautifyText(chat.msg)"></div>
         </div>
         <div class="pt-5 d-flex align-items-end">
-          <div class="input-group mb-3 input-group-sm">
+          <div class="btn-group btn-group-sm">
             <button class="btn btn-danger" type="button" @click="clean">
               <i class="bi bi-trash"></i>
               清空记录
             </button>
-            <textarea
-              type="text"
-              class="form-control"
-              v-model="message"
-              v-bind:disabled="wait"
-              placeholder="请输入内容"
-            ></textarea>
-            <button class="btn btn-success" type="button" @click="send">
-              <i class="bi-send" role="img"></i>
-              发送
+            <button
+              class="btn btn-primary"
+              type="button"
+              data-bs-toggle="modal"
+              data-bs-target="#set"
+            >
+              <i class="bi bi-sliders"></i>
+              设置
             </button>
           </div>
+        </div>
+      </div>
+      <div class="pt-2 d-flex align-items-end">
+        <div class="input-group mb-3 input-group-sm">
+          <textarea
+            type="text"
+            class="form-control"
+            v-model="message"
+            v-bind:disabled="wait"
+            placeholder="请输入内容"
+            @keydown="prepareSend"
+          ></textarea>
+          <button class="btn btn-success" type="button" @click="send">
+            <i class="bi-send" role="img"></i>
+            发送
+          </button>
         </div>
       </div>
       <!-- 模态框 -->
@@ -101,9 +131,7 @@
             <!-- 模态框内容 -->
             <div class="modal-body">
               <div class="input-group mb-3 mt-3">
-                <button class="btn btn-outline-primary" type="button">
-                  ApiUrl
-                </button>
+                <span class="input-group-text">ApiUrl</span>
                 <input
                   type="text"
                   class="form-control"
@@ -112,9 +140,7 @@
                 />
               </div>
               <div class="input-group mb-3 mt-3">
-                <button class="btn btn-outline-primary" type="button">
-                  ApiKey
-                </button>
+                <span class="input-group-text">ApiKey</span>
                 <input
                   type="text"
                   class="form-control"
@@ -123,9 +149,7 @@
                 />
               </div>
               <div class="input-group mb-3 mt-3">
-                <button class="btn btn-outline-primary" type="button">
-                  上下文对话条数
-                </button>
+                <span class="input-group-text">上下文对话条数</span>
                 <input
                   type="number"
                   class="form-control"
@@ -133,8 +157,39 @@
                   v-model="history"
                 />
               </div>
+              <div class="input-group mb-3 mt-3">
+                <span class="input-group-text">温度</span>
+                <input type="text" class="form-control" v-model="temperature" />
+                <input
+                  type="range"
+                  class="form-range"
+                  min="0"
+                  max="2"
+                  step="0.1"
+                  id="temperature"
+                  v-model="temperature"
+                />
+              </div>
+              <div class="alert alert-info">
+                使用什么样的采样温度，介于0和2之间。值越高（如0.8），输出越随机，而值越低（如0.2），输出就越集中和确定。
+              </div>
+              <div class="input-group mb-3 mt-3">
+                <span class="input-group-text">top_p</span>
+                <input type="text" class="form-control" v-model="top_p" />
+                <input
+                  type="range"
+                  class="form-range"
+                  min="0"
+                  max="2"
+                  step="0.1"
+                  id="top_p"
+                  v-model="top_p"
+                />
+              </div>
+              <div class="alert alert-info">
+                一种替代温度采样的方法，称为核采样，其中模型考虑具有top_p概率质量的令牌的结果。因此，0.1意味着只考虑包含前10%概率质量的代币。
+              </div>
             </div>
-
             <!-- 模态框底部 -->
             <div class="modal-footer">
               <button
@@ -144,7 +199,7 @@
               >
                 关闭
               </button>
-              <button type="button" class="btn btn-success" @click="save()">
+              <button type="button" class="btn btn-success" @click="save(1)">
                 保存
               </button>
             </div>
@@ -155,7 +210,7 @@
     <!-- 最新的 Bootstrap5 核心 JavaScript 文件 -->
     <script src="./static/js/bootstrap.bundle.min.js"></script>
     <!-- vue2 -->
-    <script src="./static/js/vue.min.js"></script>
+    <script src="./static/js/vue.js"></script>
     <script src="./static/js/axios.min.js"></script>
     <!-- 引入jq,layer弹窗 -->
     <script src="./static/js/jquery.min.js"></script>
@@ -174,9 +229,12 @@
           isStart: false,
           message: "",
           chatLog: [],
+          model: "gpt-3.5-turbo-0613",
           ApiUrl: "https://api.chatanywhere.cn/",
           ApiKey: "",
           history: 3,
+          temperature: 0,
+          top_p: 1,
         },
         methods: {
           clean: function () {
@@ -290,6 +348,12 @@
               );
             }
           },
+          prepareSend: function (event) {
+            if (event.ctrlKey && event.keyCode === 13) {
+              // 执行你想要的操作
+              this.send();
+            }
+          },
           send: function () {
             var vm = this;
             // 读取data.message的值
@@ -350,10 +414,15 @@
               JSON.stringify(this.chatLog)
             );
           },
-          save: function () {
+          save: function (type) {
             window.localStorage.setItem("ApiUrl", this.ApiUrl);
             window.localStorage.setItem("ApiKey", this.ApiKey);
-            this.$message("保存成功", "success");
+            window.localStorage.setItem("temperature", this.temperature);
+            window.localStorage.setItem("top_p", this.top_p);
+            window.localStorage.setItem("model", this.model);
+            if (type) {
+              this.$message("保存成功", "success");
+            }
           },
           start: function () {
             //获取缓存
@@ -362,6 +431,9 @@
             }
             this.ApiUrl = window.localStorage.getItem("ApiUrl");
             this.ApiKey = window.localStorage.getItem("ApiKey");
+            this.temperature = window.localStorage.getItem("temperature");
+            this.top_p = window.localStorage.getItem("top_p");
+            this.model = window.localStorage.getItem("model");
             if (this.chatLog == null) {
               this.chatLog = [];
             }
@@ -371,7 +443,6 @@
           this.start();
         },
       });
-      Vue.config.devtools = true;
     </script>
   </body>
 </html>
