@@ -18,8 +18,7 @@ php 流式输出参考 [项目](https://github.com/qiayue/php-openai-gpt-stream-
 
 ## 图片展示
 
-![image](show/1.png)
-![image](show/2.png)
-![image](show/3.png)
-![image](show/4.png)
-![image](show/5.png)
+![image](show/(1).png)
+![image](show/(2).png)
+![image](show/(3).png)
+![image](show/(4).png)
