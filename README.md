@@ -10,6 +10,10 @@
 
 支持设置历史对话数量，连续对话
 
+支持插件功能，已加入画图插件，图表插件；（目前一次只能开启一个插件）
+
+支持快捷角色prompt选择
+
 php 流式输出参考 [项目](https://github.com/qiayue/php-openai-gpt-stream-chat-api-webui "项目")
 
 ## 图片展示

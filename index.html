@@ -10,10 +10,23 @@
       rel="stylesheet"
       href="./static/bootstrap-icons/font/bootstrap-icons.css"
     />
+
+    <!--引入下拉插件css-->
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="./static/bootstrap-select/bootstrap-select.min.css"
+    />
     <!-- 高亮 -->
     <link rel="stylesheet" href="./static/css/hightlight.css" />
     <!-- katex -->
     <link rel="stylesheet" href="./static/katex/katex.min.css" />
+    <style>
+      .btn-default {
+        border-color: var(--bs-border-color);
+        color: var(--bs-secondary) !important;
+      }
+    </style>
   </head>
   <body>
     <div class="container" id="app">
@@ -46,21 +59,35 @@
       <br />
       <div class="pt-5" id="chat">
         <div class="card mt-2">
-          <div class="card-body">
-            <p>选择使用的模型</p>
-
-            <select class="form-select" v-model="model" @change="save(0)">
-              <option>gpt-3.5-turbo</option>
-              <option>gpt-3.5-turbo-16k</option>
-              <option>gpt-3.5-turbo-0613</option>
-              <option>gpt-3.5-turbo-16k-0613</option>
-              <option>gpt-4</option>
-              <option>gpt-4-32k</option>
-              <option>gpt-4-0613</option>
-              <option>gpt-4-32k-0613</option>
-            </select>
+          <div class="card-body bg-muted">
+            <div class="mb-3 mt-3">
+              <label for="email" class="form-label">模型:</label
+              ><select
+                class="form-control selectpicker"
+                v-model="model"
+                @change="save(0)"
+              >
+                <option>gpt-3.5-turbo</option>
+                <option>gpt-3.5-turbo-16k</option>
+                <option>gpt-3.5-turbo-0613</option>
+                <option>gpt-3.5-turbo-16k-0613</option>
+                <option>gpt-4</option>
+                <option>gpt-4-32k</option>
+                <option>gpt-4-0613</option>
+                <option>gpt-4-32k-0613</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label for="pwd" class="form-label">快捷角色:</label>
+              <vm-select
+                :options="roles"
+                v-model="selecteDrole"
+                :method="preSet()"
+              ></vm-select>
+            </div>
           </div>
         </div>
+
         <div class="card mt-2" v-show="chatLog.length==0">
           <div class="card-header">说明</div>
           <div class="card-body">
@@ -81,14 +108,40 @@
             <i class="bi-robot" role="img" v-if="chat.name === '机器人'"></i>
             <i class="bi-person" role="img" v-else></i>
             {{chat.name}}
+
+            <button
+              class="btn btn-outline-info btn-sm float-end copy-btn"
+              :class="{ ' text-light': chat.name === '机器人' }"
+              :data-clipboard-text="encodeURIComponent(chat.msg)"
+            >
+              复制
+            </button>
           </div>
-          <div class="card-body" v-html="beautifyText(chat.msg)"></div>
+
+          <div
+            class="card-body"
+            v-html="beautifyText(chat.msg,chat.pluginLog)"
+          ></div>
         </div>
         <div class="pt-5 d-flex align-items-end">
           <div class="btn-group btn-group-sm">
-            <button class="btn btn-danger" type="button" @click="clean">
+            <button
+              class="btn btn-danger"
+              type="button"
+              @click="clean"
+              v-bind:disabled="wait"
+            >
               <i class="bi bi-trash"></i>
               清空记录
+            </button>
+            <button
+              class="btn btn-warning"
+              type="button"
+              @click="cleanMessage()"
+              v-bind:disabled="wait"
+            >
+              <i class="bi bi-trash"></i>
+              清空输入框
             </button>
             <button
               class="btn btn-primary"
@@ -98,6 +151,15 @@
             >
               <i class="bi bi-sliders"></i>
               设置
+            </button>
+            <button
+              class="btn btn-info"
+              type="button"
+              data-bs-toggle="modal"
+              data-bs-target="#plugin"
+            >
+              <i class="bi bi-compass"></i>
+              插件配置
             </button>
           </div>
         </div>
@@ -112,7 +174,12 @@
             placeholder="请输入内容"
             @keydown="prepareSend"
           ></textarea>
-          <button class="btn btn-success" type="button" @click="send">
+          <button
+            class="btn btn-success"
+            type="button"
+            @click="send"
+            v-bind:disabled="wait"
+          >
             <i class="bi-send" role="img"></i>
             发送
           </button>
@@ -210,15 +277,65 @@
           </div>
         </div>
       </div>
+      <div class="modal fade" id="plugin">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <!-- 模态框头部 -->
+            <div class="modal-header">
+              <h4 class="modal-title">插件选择</h4>
+              <button
+                type="button"
+                class="btn-close"
+                data-bs-dismiss="modal"
+              ></button>
+            </div>
+
+            <!-- 模态框内容 -->
+            <div class="modal-body">
+              <select
+                class="form-select"
+                multiple
+                v-model="pluginSelect"
+                @change="handleSelectChange"
+              >
+                >
+                <option value="">不使用</option>
+                <option :value="row.file_name" v-for="row in plugins">
+                  {{row.name}}
+                </option>
+              </select>
+              <div class="input-group mb-3 mt-3">
+                {{selectedPluginDescription}}
+              </div>
+            </div>
+            <!-- 模态框底部 -->
+            <div class="modal-footer">
+              <button
+                type="button"
+                class="btn btn-danger"
+                data-bs-dismiss="modal"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
     <!-- 最新的 Bootstrap5 核心 JavaScript 文件 -->
     <script src="./static/js/bootstrap.bundle.min.js"></script>
-    <!-- vue2 -->
-    <script src="./static/js/vue.js"></script>
-    <script src="./static/js/axios.min.js"></script>
     <!-- 引入jq,layer弹窗 -->
     <script src="./static/js/jquery.min.js"></script>
     <script src="./static/layer/layer.js"></script>
+    <!--引入下拉插件js-->
+    <script
+      type="text/javascript"
+      src="./static/bootstrap-select/bootstrap-select.min.js"
+    ></script>
+    <script
+      type="text/javascript"
+      src="./static/bootstrap-select/i18n/defaults-zh_CN.min.js"
+    ></script>
     <!-- markdown -->
     <script src="./static/js/marked.min.js"></script>
     <!-- 高亮 -->
@@ -227,6 +344,9 @@
     <script src="./static/katex/katex.min.js"></script>
     <!-- 复制 -->
     <script src="./static/js/clipboard.min.js"></script>
+    <!-- vue2 -->
+    <script src="./static/js/vue.js"></script>
+    <script src="./static/js/axios.min.js"></script>
     <!-- 自定义vue插件 -->
     <script src="./static/js/vue.plugin.js"></script>
     <script type="text/javascript">
@@ -237,6 +357,10 @@
           isStart: false,
           message: "",
           chatLog: [],
+          plugins: [],
+          pluginSelect: [],
+          roles: [],
+          selecteDrole: "",
           model: "gpt-3.5-turbo-0613",
           ApiUrl: "https://api.chatanywhere.cn/",
           ApiKey: "",
@@ -268,7 +392,18 @@
               }
             );
           },
-          beautifyText: function (text) {
+          cleanMessage: function () {
+            // 清空输入框
+            this.message = "";
+          },
+          //预设role
+          preSet: function () {
+            if (this.selecteDrole != undefined && this.selecteDrole != "") {
+              this.message = this.selecteDrole;
+              this.selecteDrole = "";
+            }
+          },
+          beautifyText: function (text, pluginLog) {
             // 使用marked将文本转换为HTML
             var markedHtml = marked.parse(text);
             //使用katex显示数学公式
@@ -311,7 +446,7 @@
                 // 使用highlight.js对代码进行语法高亮
                 var highlightedCode = hljs.highlightAuto(code).value;
                 var copyButton =
-                  '<button class="btn btn-outline-secondary" data-clipboard-text="' +
+                  '<button class="btn btn-outline-secondary copy-btn" data-clipboard-text="' +
                   encodeURIComponent(code) +
                   '">复制</button>';
 
@@ -326,6 +461,51 @@
                 );
               }
             );
+            //加载插件记录
+            if (pluginLog != undefined && pluginLog != null) {
+              var html = "";
+              for (var i = 0; i < pluginLog.length; i++) {
+                var id = pluginLog[i].name + i + text.length;
+                var row = pluginLog[i];
+                if (row.msg !== null && row.msg !== "") {
+                  var card =
+                    '<button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-target="#' +
+                    id +
+                    '" data-bs-toggle="collapse">Used ' +
+                    pluginLog[i].name +
+                    "</button>" +
+                    '<div id="' +
+                    id +
+                    '" class="card collapse show"><div class="card-body"><button class="btn btn-primary"><span class="spinner-border spinner-border-sm"></span>' +
+                    row.msg +
+                    "</button></div></div><br>";
+                  html += card;
+                } else {
+                  var input =
+                    "<div><label>输入:</label><br><code>" +
+                    row.input +
+                    "</code></div>";
+                  var output =
+                    "<div><label>输出:</label><br><code>" +
+                    row.output +
+                    "</code></div>";
+                  var card =
+                    '<button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-target="#' +
+                    id +
+                    '" data-bs-toggle="collapse">Used ' +
+                    pluginLog[i].name +
+                    "</button>" +
+                    '<div id="' +
+                    id +
+                    '" class="card collapse"><div class="card-body">' +
+                    input +
+                    output +
+                    "</div></div><br>";
+                  html += card;
+                }
+              }
+              highlightedHtml = html + highlightedHtml;
+            }
             return highlightedHtml;
           },
           smoothscroll: function () {
@@ -345,8 +525,8 @@
           load_stream: function (data) {
             let jsonObjects = data.split(',"is_end":false}{'); // 将多个JSON对象分割成单个对象
             let result = "";
+            let pluginLog = [];
             let isEnd = false; // 最后一个is_end的值
-
             for (let i = 0; i < jsonObjects.length; i++) {
               let jsonObject = jsonObjects[i];
               if (i !== 0) {
@@ -362,8 +542,19 @@
                 console.log("对象" + jsonObject + "解析JSON时发生错误:", error);
                 return;
               }
-
-              result += obj.content; // 更新最后一个content的值
+              result += obj.content;
+              if (Object.keys(obj.pluginLog).length > 0) {
+                var existingIndex = pluginLog.findIndex(function (item) {
+                  return item.name === obj.pluginLog.name;
+                });
+                if (existingIndex !== -1) {
+                  // 子元素的name已存在，进行覆盖
+                  pluginLog[existingIndex] = obj.pluginLog;
+                } else {
+                  // 子元素的name不存在，直接添加
+                  pluginLog.push(obj.pluginLog);
+                }
+              }
               isEnd = obj.is_end; // 更新最后一个is_end的值
             }
             // 添加机器人的回答到chatLog
@@ -372,10 +563,34 @@
               this.chatLog.push({
                 name: "机器人",
                 msg: result,
+                pluginLog: pluginLog,
               });
             } else {
               index = this.chatLog.length - 1;
+              // 更新聊天记录
               this.chatLog[index].msg = this.chatLog[index].msg + result;
+              //合并插件记录
+              for (var i = 0; i < pluginLog.length; i++) {
+                //查找pluginLog每个元素中name相同
+                var existingIndex = this.chatLog[index].pluginLog.findIndex(
+                  function (item) {
+                    //i是给pluginLog用的
+                    return item.name === pluginLog[i].name;
+                  }
+                );
+                if (existingIndex !== -1) {
+                  // 子元素的name已存在，进行覆盖
+                  // this.chatLog[index].pluginLog[existingIndex] = pluginLog[i];
+                  Vue.set(
+                    this.chatLog[index].pluginLog,
+                    existingIndex,
+                    pluginLog[i]
+                  ); //这样才会更新dom
+                } else {
+                  // 子元素的name不存在，直接添加
+                  this.chatLog[index].pluginLog.push(pluginLog[i]);
+                }
+              }
             }
 
             this.smoothscroll();
@@ -407,6 +622,7 @@
               name: "用户",
               msg: userMessage,
             });
+            this.smoothscroll();
             // 清空输入框
             this.message = "";
             this.wait = true;
@@ -442,6 +658,8 @@
               {
                 ApiUrl: this.ApiUrl,
                 ApiKey: this.ApiKey,
+                model: this.model,
+                pluginSelect: this.pluginSelect,
                 message: userMessage,
                 history: mergedMessages,
               },
@@ -453,12 +671,22 @@
               JSON.stringify(this.chatLog)
             );
           },
+          handleSelectChange() {
+            if (this.pluginSelect.includes("")) {
+              this.pluginSelect = [""]; // 选择 "不使用" 时，将数组重置为只包含空字符串的数组
+            }
+            this.save(0);
+          },
           save: function (type) {
             window.localStorage.setItem("ApiUrl", this.ApiUrl);
             window.localStorage.setItem("ApiKey", this.ApiKey);
             window.localStorage.setItem("temperature", this.temperature);
             window.localStorage.setItem("top_p", this.top_p);
             window.localStorage.setItem("model", this.model);
+            window.localStorage.setItem(
+              "pluginSelect",
+              JSON.stringify(this.pluginSelect)
+            );
             if (type) {
               this.$message("保存成功", "success");
             }
@@ -473,21 +701,76 @@
             this.temperature = window.localStorage.getItem("temperature");
             this.top_p = window.localStorage.getItem("top_p");
             this.model = window.localStorage.getItem("model");
+            if (window.localStorage.getItem("pluginSelect") != undefined) {
+              this.pluginSelect = JSON.parse(
+                window.localStorage.getItem("pluginSelect")
+              );
+            }
+            if (this.pluginSelect == null) {
+              this.pluginSelect = [];
+            }
             if (this.chatLog == null) {
               this.chatLog = [];
+            }
+          },
+          getRoles: function () {
+            vm = this;
+            this.$post("/ajax.php?act=getRoles", "").then(function (data) {
+              if (data.code === 0) {
+                vm.roles = data.data;
+              } else {
+                vm.$message(data.message, "error");
+              }
+            });
+          },
+          getPlugins: function () {
+            vm = this;
+            this.$post("/plugin.php?act=list", "").then(function (data) {
+              if (data.code === 0) {
+                vm.plugins = data.data;
+              } else {
+                vm.$message(data.message, "error");
+              }
+            });
+          },
+        },
+        computed: {
+          selectedPluginDescription() {
+            if (Array.isArray(this.pluginSelect)) {
+              return this.plugins
+                .filter((plugin) =>
+                  this.pluginSelect.includes(plugin.file_name)
+                )
+                .map((plugin) => `${plugin.name}(${plugin.description})`)
+                .join(", ");
+            } else {
+              return "";
             }
           },
         },
         mounted() {
           //加载缓存
           this.start();
-          //复制的值转义
-          var clipboard = new ClipboardJS(".btn-outline-secondary", {
+          this.getRoles();
+          //加载插件
+          this.getPlugins();
+          var vm = this;
+
+          //select插件
+          $.fn.selectpicker.Constructor.BootstrapVersion = "5.0.0"; // 替换为你实际使用的Bootstrap版本
+          $(".selectpicker").selectpicker();
+          //复制插件
+          var clipboard = new ClipboardJS(".copy-btn", {
             text: function (trigger) {
               var encodedText = trigger.getAttribute("data-clipboard-text");
-              var decodedText = decodeURIComponent(encodedText);
+              var decodedText = decodeURIComponent(encodedText); //转义
               return decodedText;
             },
+          });
+
+          clipboard.on("success", function (e) {
+            vm.$layer.msg("复制成功");
+            e.clearSelection();
           });
         },
       });

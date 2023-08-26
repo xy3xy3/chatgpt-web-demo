@@ -13,6 +13,8 @@ if (!$bodyData = json_decode($requestBody, true)) {
 }
 $api_url = isset($bodyData['ApiUrl']) ? $bodyData['ApiUrl'] : 0;
 $api_key = isset($bodyData['ApiKey']) ? $bodyData['ApiKey'] : 0;
+//构造gpt对象
+$gpt = new chatgpt($api_key, $api_url);
 //获取模型，prompt
 $prompt = $bodyData['message'];
 $history = isset($bodyData['history']) ? $bodyData['history'] : 0;
@@ -24,9 +26,13 @@ if (!$prompt) {
     ];
     tip($tip_arr);
 }
+header("Access-Control-Allow-Origin: *");
+header("Content-Type: text/event-stream");
+header("X-Accel-Buffering: no");
 $temperature = isset($bodyData['temperature']) ? $bodyData['temperature'] : 0;
 $model = isset($bodyData['model']) ? $bodyData['model'] : 'gpt-3.5-turbo';
 $top_p = isset($bodyData['top_p']) ? $bodyData['top_p'] : 0.7;
+$pluginSelect = !empty($bodyData['pluginSelect']) ? $bodyData['pluginSelect'] : [];
 $postdata = [
     "model" => $model,
     "temperature" => $temperature,
@@ -40,6 +46,16 @@ if (!empty($history)) {
         $msg_arr[] = ['role' => $item['name'] == '用户' ? 'user' : 'assistant', 'content' => $item['msg']];
     }
 }
+//钩子，修改用户对话
+$hook = $plugin->trigger('beforeApiSend', [$prompt, $history], $pluginSelect);
+if (!empty($hook)) {
+    foreach ($hook as $item) {
+        if (!empty($item['msg'])) {
+            $prompt = $item['msg'].$prompt;
+        }
+    }
+}
+//  exit;
 $msg_arr[] = ['role' => 'user', 'content' => $prompt];
 $postdata['messages'] = $msg_arr;
 $data_buffer = '';
@@ -91,6 +107,7 @@ $streamCallback = function ($ch, $data) use (&$data_buffer) {
             $data_buffer = '';
             $s_back = array(
                 'content' => "",
+                'pluginLog' => [],
                 'is_end' => true,
             );
             echo json_encode($s_back);
@@ -109,6 +126,7 @@ $streamCallback = function ($ch, $data) use (&$data_buffer) {
         if (isset($line_data['choices'][0]['delta']) && isset($line_data['choices'][0]['delta']['content'])) {
             $s_back = array(
                 'content' => $line_data['choices'][0]['delta']['content'],
+                'pluginLog' => [],
                 'is_end' => false,
             );
             echo json_encode($s_back);
@@ -118,9 +136,10 @@ $streamCallback = function ($ch, $data) use (&$data_buffer) {
 
     return strlen($data);
 };
-//构造gpt对象
-$gpt = new chatgpt($api_key, $api_url);
-header("Access-Control-Allow-Origin: *");
-header("Content-Type: text/event-stream");
-header("X-Accel-Buffering: no");
 $gpt->chat_once($postdata, $streamCallback);
+// $s_back = array(
+//     'content' => "",
+//     'pluginLog' => [],
+//     'is_end' => true,
+// );
+// echo json_encode($s_back);
